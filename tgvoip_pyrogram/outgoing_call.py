@@ -41,15 +41,19 @@ class VoIPOutgoingCall(VoIPCallBase):
         self.update_state(CallState.REQUESTING)
         self.peer = await self.client.resolve_peer(self.user_id)
         await self.get_dhc()
-        self.a = randint(2, self.dhc.p-1)
+        self.a = randint(2, self.dhc.p - 1)
         self.g_a = pow(self.dhc.g, self.a, self.dhc.p)
         self.g_a_hash = hashlib.sha256(i2b(self.g_a)).digest()
-        self.call = (await self.client.send(functions.phone.RequestCall(
-            user_id=self.peer,
-            random_id=randint(0, 0x7fffffff - 1),
-            g_a_hash=self.g_a_hash,
-            protocol=self.get_protocol(),
-        ))).phone_call
+        self.call = (
+            await self.client.invoke(
+                functions.phone.RequestCall(
+                    user_id=self.peer,
+                    random_id=randint(0, 0x7FFFFFFF - 1),
+                    g_a_hash=self.g_a_hash,
+                    protocol=self.get_protocol(),
+                )
+            )
+        ).phone_call
         self.update_state(CallState.WAITING)
 
     def on_call_accepted(self, func: callable) -> callable:  # the call was accepted by other party
@@ -73,10 +77,14 @@ class VoIPOutgoingCall(VoIPCallBase):
         self.check_g(self.g_b, self.dhc.p)
         self.auth_key = pow(self.g_b, self.a, self.dhc.p)
         self.key_fingerprint = calc_fingerprint(self.auth_key_bytes)
-        self.call = (await self.client.send(functions.phone.ConfirmCall(
-            key_fingerprint=self.key_fingerprint,
-            peer=types.InputPhoneCall(id=self.call.id, access_hash=self.call_access_hash),
-            g_a=i2b(self.g_a),
-            protocol=self.get_protocol(),
-        ))).phone_call
+        self.call = (
+            await self.client.invoke(
+                functions.phone.ConfirmCall(
+                    key_fingerprint=self.key_fingerprint,
+                    peer=types.InputPhoneCall(id=self.call.id, access_hash=self.call_access_hash),
+                    g_a=i2b(self.g_a),
+                    protocol=self.get_protocol(),
+                )
+            )
+        ).phone_call
         await self._initiate_encrypted_call()
